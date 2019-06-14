@@ -1,20 +1,5 @@
-#!/usr/bin/env python3
-import argparse
-from binascii import hexlify, unhexlify
-
 from typing import List
 from functools import reduce
-
-import sys
-
-try:
-    import colorama
-    colorama.init()
-    highlight = colorama.Style.BRIGHT
-    reset = colorama.Style.RESET_ALL
-except ImportError:
-    highlight = ''
-    reset = ''
 
 sbox = [
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -56,7 +41,7 @@ inv_sbox = [
 
 rcon = [x.to_bytes(4, 'little') for x in [ 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36, ]]
 
-def xor(*arg: bytes) -> bytes:
+def xor_bytes(*arg: bytes) -> bytes:
     assert len({len(x) for x in arg}) == 1 # all args must have the same length
     xor_fun = lambda x, y : x ^ y
     return bytes(reduce(xor_fun, byt3s) for byt3s in zip(*arg))
@@ -78,49 +63,18 @@ def inv_sub_word(word: bytes) -> bytes:
     return bytes((inv_sbox[w] for w in word))
 
 
-def aes_round(value: str) -> int:
-    aes_round = int(value)
-    if not 0 <= aes_round <= 10:
-        raise argparse.ArgumentError('the aes round must satisfy 0 <= r <= 10')
-    return aes_round
-
-def aes_key(value: str) -> bytes:
-    if value.startswith('0x'):
-        value = value[2:]
-    try:
-        key = unhexlify(value)
-    except TypeError:
-        raise argparse.ArgumentError('invalid hex bytes in aes key')
-    if len(key) * 8 not in {128, 192, 256}:
-        raise argparse.ArgumentError('''
-            AES key must be 128, 192 or 256 bits long (is {} bits)
-            '''.strip().format(len(key) * 8))
-    return key
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='''
-        Tool to calculate the Rijndael key schedule given any AES-128 round key.
-        '''.strip())
-    parser.add_argument('-r', '--round', dest='aes_round', default=0, type=aes_round, help='''
-        The AES round of the provided key. Defaults to 0 (base key).
-        '''.strip())
-    parser.add_argument('round_key', type=aes_key, help='''
-        the round key in hex notation from which the full key will be derived.
-        '''.strip())
-    return parser.parse_args()
-
 def reverse_key_schedule(aes_round: int, round_key: bytes):
+    assert len(round_key) * 8 == 128
     for i in range(aes_round - 1, -1, -1):
         a2 = round_key[0:4]
         b2 = round_key[4:8]
         c2 = round_key[8:12]
         d2 = round_key[12:16]
 
-        d1 = xor(d2, c2)
-        c1 = xor(c2, b2)
-        b1 = xor(b2, a2)
-        a1 = xor(a2, rot_word(sub_word(d1)), rcon[i])
+        d1 = xor_bytes(d2, c2)
+        c1 = xor_bytes(c2, b2)
+        b1 = xor_bytes(b2, a2)
+        a1 = xor_bytes(a2, rot_word(sub_word(d1)), rcon[i])
 
         round_key = a1 + b1 + c1 + d1
 
@@ -143,38 +97,11 @@ def key_schedule(base_key: bytes) -> List[bytes]:
 
     for i in range(N, 4 * R):
         if i % N == 0:
-            W[i] = xor(W[i - N], sub_word(rot_word(W[i - 1])), rcon[i // N  - 1])
+            W[i] = xor_bytes(W[i - N], sub_word(rot_word(W[i - 1])), rcon[i // N  - 1])
         elif N > 6 and i % N == 4:
-            W[i] = xor(W[i - N], sub_word(W[i - 1]))
+            W[i] = xor_bytes(W[i - N], sub_word(W[i - 1]))
         else:
-            W[i] = xor(W[i - N], W[i - 1])
+            W[i] = xor_bytes(W[i - N], W[i - 1])
 
     keys = [b''.join(W[i * 4 + j] for j in range(4)) for i in range(R)]
     return keys
-
-
-def main(aes_round: int, round_key: bytes) -> None:
-    if len(round_key) * 8 != 128 and aes_round != 0:
-        print("reversing the AES-{} key schedule is not supported".format(len(base_key) * 8, file=sys.stderr))
-        sys.exit(1)
-
-
-    if aes_round != 0:
-        base_key = reverse_key_schedule(aes_round, round_key)
-    else:
-        base_key = round_key
-    keys = key_schedule(base_key)
-
-    assert keys[aes_round] == round_key or len(base_key) * 8 != 128
-
-    for i, key in enumerate(keys):
-        if i == aes_round:
-            print(highlight, end='')
-        print("{:2}: {}".format(i, hexlify(key).decode()))
-        if i == aes_round:
-            print(reset, end='')
-
-
-if __name__ == '__main__':
-    args = parse_args()
-    main(**vars(args))
