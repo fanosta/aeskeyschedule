@@ -56,7 +56,7 @@ def __main(aes_round: int, round_key: bytes) -> None:
 
 
     if aes_round != 0:
-        base_key = reverse_key_schedule(aes_round, round_key)
+        base_key = reverse_key_schedule(round_key, aes_round)
     else:
         base_key = round_key
     keys = key_schedule(base_key)
