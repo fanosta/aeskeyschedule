@@ -47,23 +47,38 @@ def xor_bytes(*arg: bytes) -> bytes:
     return bytes(reduce(xor_fun, byt3s) for byt3s in zip(*arg))
 
 def rot_word(word: bytes) -> bytes:
+    '''
+    apply the RotWord transformation to a bytes object of length 4
+    '''
     assert len(word) == 4
     return bytes((word[(i + 1) % 4] for i in range(4)))
 
 def inv_rot_word(word: bytes) -> bytes:
+    '''
+    apply the inverse of the RotWord transformation to a bytes object of length 4
+    '''
     assert len(word) == 4
     return bytes((word[(i - 1) % 4] for i in range(4)))
 
 def sub_word(word: bytes) -> bytes:
+    '''
+    apply the AES S-Box to each of the bytes of the 4-byte word
+    '''
     assert len(word) == 4
     return bytes((sbox[w] for w in word))
 
 def inv_sub_word(word: bytes) -> bytes:
+    '''
+    apply the inverse of the AES S-Box to each of the bytes of the 4-byte word
+    '''
     assert len(word) == 4
     return bytes((inv_sbox[w] for w in word))
 
 
-def reverse_key_schedule(aes_round: int, round_key: bytes):
+def reverse_key_schedule(round_key: bytes, aes_round: int):
+    '''
+    reverse the AES-128 key schedule, using a single round_key.
+    '''
     assert len(round_key) * 8 == 128
     for i in range(aes_round - 1, -1, -1):
         a2 = round_key[0:4]
@@ -81,6 +96,11 @@ def reverse_key_schedule(aes_round: int, round_key: bytes):
     return round_key
 
 def key_schedule(base_key: bytes) -> List[bytes]:
+    '''
+    calculate the expanded AES key given the base key.
+    Depending on the length of the base key 11, 13 or 15 round keys are returned
+    for AES-128, AES-192 and AES-256 respectively.
+    '''
     assert len(base_key) * 8 in {128, 192, 256}
 
     # length of the key in 32 bit words
