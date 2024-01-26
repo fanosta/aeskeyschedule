@@ -62,11 +62,13 @@ The two main functions are `key_schedule` and `reverse_key_schedule`
 
 Calculate the AES-128 base key given the last round key:
 ```python3
+from aeskeyschedule import reverse_key_schedule
 base_key = reverse_key_schedule(b'\xe2K\xbb"~\xe8\xb3\xe6u\x06_\xdb\x9b\xd6\x9bB', 10)
 ```
 
 Calculate the last round key using an AES-128 base key:
 ```python3
+from aeskeyschedule import key_schedule
 base_key = b'\x91\xa3\xba\x04\xe3\xdb:\x10\xc7$R\x15|]\xca\x87'
 expanded_key = key_schedule(base_key)
 assert expanded_key[0] == base_key
